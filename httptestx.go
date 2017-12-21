@@ -1,6 +1,11 @@
 package httptestx
 
 import (
+	"bytes"
+	"encoding/json"
+	"encoding/xml"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 )
@@ -78,6 +83,67 @@ func (s *HTTPTestServerExt) AddHeader(key, value string) *HTTPTestServerExt {
 	s.h.Add(key, value)
 	s.s = httptest.NewServer(s.BuildHandler())
 	return s
+}
+
+func (s *HTTPTestServerExt) Body(body io.Reader) *HTTPTestServerExt {
+	b, err := ioutil.ReadAll(body)
+	if err != nil {
+		panic(err)
+	}
+	s.b = b
+	s.s = httptest.NewServer(s.BuildHandler())
+	return s
+}
+
+func (s *HTTPTestServerExt) BodyString(str string) *HTTPTestServerExt {
+	s.b = []byte(str)
+	s.s = httptest.NewServer(s.BuildHandler())
+	return s
+}
+
+func (s *HTTPTestServerExt) JSON(data interface{}) *HTTPTestServerExt {
+	s.h.Set("Content-Type", "application/json")
+	b, err := readAndDecode(data, "json")
+	if err != nil {
+		panic(err)
+	}
+	s.b = b
+	s.s = httptest.NewServer(s.BuildHandler())
+	return s
+}
+
+func (s *HTTPTestServerExt) XML(data interface{}) *HTTPTestServerExt {
+	s.h.Set("Content-Type", "application/xml")
+	b, err := readAndDecode(data, "xml")
+	if err != nil {
+		panic(err)
+	}
+	s.b = b
+	s.s = httptest.NewServer(s.BuildHandler())
+	return s
+}
+
+func readAndDecode(data interface{}, kind string) ([]byte, error) {
+	buf := &bytes.Buffer{}
+
+	switch data.(type) {
+	case string:
+		buf.WriteString(data.(string))
+	case []byte:
+		buf.Write(data.([]byte))
+	default:
+		var err error
+		if kind == "xml" {
+			err = xml.NewEncoder(buf).Encode(data)
+		} else {
+			err = json.NewEncoder(buf).Encode(data)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ioutil.ReadAll(buf)
 }
 
 func (s *HTTPTestServerExt) URL() string {

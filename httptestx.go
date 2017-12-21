@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"time"
 )
 
 var server *HTTPTestServerExt
@@ -37,6 +38,7 @@ type HTTPTestServerExt struct {
 	h      http.Header
 	status int
 	b      []byte
+	d      time.Duration
 }
 
 func NewServer() *HTTPTestServerExt {
@@ -56,6 +58,9 @@ func (s *HTTPTestServerExt) Serve() *HTTPTestServerExt {
 
 func (s *HTTPTestServerExt) BuildHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		if s.d > 0 {
+			time.Sleep(s.d)
+		}
 		for k, vals := range s.h {
 			for _, v := range vals {
 				w.Header().Add(k, v)
@@ -144,6 +149,13 @@ func readAndDecode(data interface{}, kind string) ([]byte, error) {
 	}
 
 	return ioutil.ReadAll(buf)
+}
+
+func (s *HTTPTestServerExt) Delay(d time.Duration) *HTTPTestServerExt {
+	s.s.Close()
+	s.d = d
+	s.s = httptest.NewServer(s.BuildHandler())
+	return s
 }
 
 func (s *HTTPTestServerExt) URL() string {
